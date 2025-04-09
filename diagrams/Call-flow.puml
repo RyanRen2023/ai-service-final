@@ -1,0 +1,18 @@
+@startuml
+title AI Service - File-Level Call Flow
+
+actor User
+User -> main.py : POST /generate/description\nPOST /generate/image
+
+main.py --> description_generator.py : include_router(description)
+main.py --> image_generator.py : include_router(image)
+
+description_generator.py --> LLM.py : get_llm()
+LLM.py --> "skills/ProductSkill/Description" : load config.json\nload skprompt.txt
+
+description_generator.py --> "Azure OpenAI" : invoke descriptionFunction
+description_generator.py --> "Local LLM API" : POST /local-llm (if enabled)
+
+image_generator.py --> "Azure DALL·E API" : POST /images/generations
+
+@enduml

@@ -3,18 +3,21 @@ from fastapi import APIRouter, Request, status
 from fastapi.responses import Response, JSONResponse
 import requests
 import json
-from routers.LLM import get_llm 
+from routers.LLM import get_llm
 
 # initialize the model that would be used for the app
 kernel, useLocalLLM, endpoint = get_llm()
 if not useLocalLLM:
     # Import semantic skills from the "skills" directory
     skills_directory: str = "skills"
-    productFunctions: dict = kernel.import_semantic_skill_from_directory(skills_directory, "ProductSkill")
+    productFunctions: dict = kernel.import_semantic_skill_from_directory(
+        skills_directory, "ProductSkill"
+    )
     descriptionFunction: Any = productFunctions["Description"]
 
 # Define the description API router
 description: APIRouter = APIRouter(prefix="/generate", tags=["generate"])
+
 
 # Define the Product class
 class Product:
@@ -22,8 +25,13 @@ class Product:
         self.name: str = product["name"]
         self.tags: List[str] = product["tags"]
 
+
 # Define the post_description endpoint
-@description.post("/description", summary="Get description for a product", operation_id="getDescription")
+@description.post(
+    "/description",
+    summary="Get description for a product",
+    operation_id="getDescription",
+)
 async def post_description(request: Request) -> JSONResponse:
     try:
         # Parse the request body and create a Product object
@@ -34,28 +42,37 @@ async def post_description(request: Request) -> JSONResponse:
 
         if useLocalLLM:
             print("Calling local LLM")
-            
-            prompt = f"Describe this pet store product using joyful, playful, and enticing language.\nProduct name: {name}\ntags: {tags}\ndescription:\""
+
+            prompt = f"""
+                        Write a detailed and engaging product description for a high-quality consumer electronics item sold on an online tech store like BestBuy.
+
+                        - Highlight the product's key features and benefits
+                        - Use a professional, informative, and persuasive tone
+                        - Emphasize why this product stands out from competitors
+                        - Mention technical specs where applicable
+                        - Target everyday consumers (not engineers)
+
+                        Product name: {name}
+                        Tags: {tags}
+
+                        Product Description:
+                        """
             temperature = 0.5
             top_p = 0.0
 
             url = endpoint
-            payload = {
-                "prompt": prompt,
-                "temperature": temperature,
-                "top_p": top_p
-            }
+            payload = {"prompt": prompt, "temperature": temperature, "top_p": top_p}
             headers = {"Content-Type": "application/json"}
             response = requests.request("POST", url, headers=headers, json=payload)
-            
+
             # convert response.text to json
             result = json.loads(response.text)
             result = result["Result"]
             result = result.split("description:")[1]
-            
+
             # remove all double quotes
-            if "\"" in result:
-                result = result.replace("\"", "")
+            if '"' in result:
+                result = result.replace('"', "")
 
             # # if first character is a double quote, remove it
             # if result[0] == "\"":
@@ -63,7 +80,7 @@ async def post_description(request: Request) -> JSONResponse:
             # # if last character is a double quote, remove it
             # if result[-1] == "\"":
             #     result = result[:-1]
-            
+
             print(result)
         else:
             print("Calling OpenAI")
@@ -73,12 +90,18 @@ async def post_description(request: Request) -> JSONResponse:
             context["tags"] = tags
             result: str = await descriptionFunction.invoke_async(context=context)
             if "error" in str(result).lower():
-                return Response(content=str(result), status_code=status.HTTP_401_UNAUTHORIZED)
+                return Response(
+                    content=str(result), status_code=status.HTTP_401_UNAUTHORIZED
+                )
             print(result)
             result = str(result).replace("\n", "")
 
         # Return the description as a JSON response
-        return JSONResponse(content={"description": result}, status_code=status.HTTP_200_OK)
+        return JSONResponse(
+            content={"description": result}, status_code=status.HTTP_200_OK
+        )
     except Exception as e:
         # Return an error message as a JSON response
-        return JSONResponse(content={"error": str(e)}, status_code=status.HTTP_400_BAD_REQUEST)
+        return JSONResponse(
+            content={"error": str(e)}, status_code=status.HTTP_400_BAD_REQUEST
+        )
